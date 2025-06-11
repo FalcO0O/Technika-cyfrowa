@@ -1,9 +1,25 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity MenuSystem is
+    Port (
+        clk       : in  STD_LOGIC;
+        reset     : in  STD_LOGIC;
+        btn_left  : in  STD_LOGIC;
+        btn_right : in  STD_LOGIC;
+        HEX0      : out STD_LOGIC_VECTOR (6 downto 0);
+        HEX1      : out STD_LOGIC_VECTOR (6 downto 0)
+    );
+end MenuSystem;
+
 architecture Behavioral of MenuSystem is
     signal value_current : INTEGER range 0 to 9 := 0;
     signal value_chosen  : INTEGER range 0 to 9 := 0;
 
     -- Debounce parameters
-    constant DEBOUNCE_LIMIT : INTEGER := 1000000; -- adjust for 20ms at 50MHz
+    constant DEBOUNCE_LIMIT : INTEGER := 1000000; -- adjust for ~20ms @ 50MHz
 
     -- Debounce signals
     signal btn_left_db     : STD_LOGIC := '0';
@@ -43,6 +59,8 @@ begin
             btn_right_count <= 0;
             btn_left_db     <= '0';
             btn_right_db    <= '0';
+            btn_left_prev   <= '0';
+            btn_right_prev  <= '0';
         elsif rising_edge(clk) then
             -- Left button debounce
             if btn_left = btn_left_prev then
@@ -77,18 +95,18 @@ begin
             value_current <= 0;
             value_chosen  <= 0;
         elsif rising_edge(clk) then
-            if btn_left_db = '0' then
+            if btn_left_db = '1' then
                 if value_current = 9 then
                     value_current <= 0;
                 else
                     value_current <= value_current + 1;
                 end if;
-                btn_left_db <= '0'; -- consume press
+                btn_left_db <= '0'; -- consume event
             end if;
 
-            if btn_right_db = '0' then
+            if btn_right_db = '1' then
                 value_chosen <= value_current;
-                btn_right_db <= '0'; -- consume press
+                btn_right_db <= '0'; -- consume event
             end if;
         end if;
     end process;
