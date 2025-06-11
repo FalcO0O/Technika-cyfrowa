@@ -1,0 +1,69 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity MenuSystem is
+    Port (
+        clk       : in  STD_LOGIC;
+        reset     : in  STD_LOGIC;
+        btn_left  : in  STD_LOGIC;
+        btn_right : in  STD_LOGIC;
+        HEX0      : out STD_LOGIC_VECTOR (6 downto 0);
+        HEX1      : out STD_LOGIC_VECTOR (6 downto 0)
+    );
+end MenuSystem;
+
+architecture Behavioral of MenuSystem is
+    signal value_current : INTEGER range 0 to 9 := 0;
+    signal value_chosen  : INTEGER range 0 to 9 := 0;
+
+    -- Debounced signals
+    signal btn_left_db  : STD_LOGIC := '0';
+    signal btn_right_db : STD_LOGIC := '0';
+
+    -- Segment encoding
+    function to_seven_seg(val : INTEGER) return STD_LOGIC_VECTOR is
+        variable seg : STD_LOGIC_VECTOR(6 downto 0);
+    begin
+        case val is
+            when 0 => seg := "1000000";
+            when 1 => seg := "1111001";
+            when 2 => seg := "0100100";
+            when 3 => seg := "0110000";
+            when 4 => seg := "0011001";
+            when 5 => seg := "0010010";
+            when 6 => seg := "0000010";
+            when 7 => seg := "1111000";
+            when 8 => seg := "0000000";
+            when 9 => seg := "0010000";
+            when others => seg := "1111111";
+        end case;
+        return seg;
+    end;
+
+begin
+
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            value_current <= 0;
+            value_chosen <= 0;
+        elsif rising_edge(clk) then
+            if btn_left = '1' then
+                if value_current = 9 then
+                    value_current <= 0;
+                else
+                    value_current <= value_current + 1;
+                end if;
+            end if;
+            if btn_right = '1' then
+                value_chosen <= value_current;
+            end if;
+        end if;
+    end process;
+
+    HEX0 <= to_seven_seg(value_current); -- lewy wyświetlacz
+    HEX1 <= to_seven_seg(value_chosen);  -- prawy wyświetlacz
+
+end Behavioral;
