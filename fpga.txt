@@ -3,7 +3,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_ARITH.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
-entity MenuSystem is
+entity fpga is
     Port (
         clk       : in  STD_LOGIC;
         reset     : in  STD_LOGIC;
@@ -12,17 +12,31 @@ entity MenuSystem is
         HEX0      : out STD_LOGIC_VECTOR (6 downto 0);
         HEX1      : out STD_LOGIC_VECTOR (6 downto 0)
     );
-end MenuSystem;
+end fpga;
 
-architecture Behavioral of MenuSystem is
-    signal value_current : INTEGER range 0 to 9 := 0;
-    signal value_chosen  : INTEGER range 0 to 9 := 0;
+architecture Behavioral of fpga is
 
-    -- Debounced signals
-    signal btn_left_db  : STD_LOGIC := '0';
-    signal btn_right_db : STD_LOGIC := '0';
+    signal value_current     : INTEGER range 0 to 9 := 0;
+    signal value_chosen      : INTEGER range 0 to 9 := 0;
 
-    -- Segment encoding
+    constant DEBOUNCE_MAX    : INTEGER := 500000;
+    signal counter_left      : INTEGER := 0;
+    signal counter_right     : INTEGER := 0;
+
+    signal btn_left_db       : STD_LOGIC := '0';
+    signal btn_right_db      : STD_LOGIC := '0';
+
+    signal btn_left_prev     : STD_LOGIC := '0';
+    signal btn_right_prev    : STD_LOGIC := '0';
+
+    signal left_pressed_prev  : STD_LOGIC := '0';
+    signal right_pressed_prev : STD_LOGIC := '0';
+
+    -- Blink logic
+    constant BLINK_MAX       : INTEGER := 25000000; -- Adjust for blink rate
+    signal blink_counter     : INTEGER := 0;
+    signal blink_on          : STD_LOGIC := '1';
+
     function to_seven_seg(val : INTEGER) return STD_LOGIC_VECTOR is
         variable seg : STD_LOGIC_VECTOR(6 downto 0);
     begin
@@ -44,26 +58,91 @@ architecture Behavioral of MenuSystem is
 
 begin
 
+    -- Debounce logic
     process(clk, reset)
     begin
-        if reset = '1' then
+        if reset = '0' then
+            counter_left <= 0;
+            counter_right <= 0;
+            btn_left_db <= '0';
+            btn_right_db <= '0';
+            btn_left_prev <= '0';
+            btn_right_prev <= '0';
+        elsif rising_edge(clk) then
+            if btn_left = btn_left_prev then
+                if counter_left < DEBOUNCE_MAX then
+                    counter_left <= counter_left + 1;
+                else
+                    btn_left_db <= btn_left;
+                end if;
+            else
+                counter_left <= 0;
+            end if;
+            btn_left_prev <= btn_left;
+
+            if btn_right = btn_right_prev then
+                if counter_right < DEBOUNCE_MAX then
+                    counter_right <= counter_right + 1;
+                else
+                    btn_right_db <= btn_right;
+                end if;
+            else
+                counter_right <= 0;
+            end if;
+            btn_right_prev <= btn_right;
+        end if;
+    end process;
+
+    -- Button logic
+    process(clk, reset)
+    begin
+        if reset = '0' then
             value_current <= 0;
             value_chosen <= 0;
+            left_pressed_prev <= '0';
+            right_pressed_prev <= '0';
         elsif rising_edge(clk) then
-            if btn_left = '1' then
-                if value_current = 9 then
-                    value_current <= 0;
-                else
-                    value_current <= value_current + 1;
+            if btn_right_db = '1' then
+                if btn_left_db = '0' and left_pressed_prev = '1' then
+                    if value_current = 9 then
+                        value_current <= 0;
+                    else
+                        value_current <= value_current + 1;
+                    end if;
                 end if;
             end if;
-            if btn_right = '1' then
+            left_pressed_prev <= btn_left_db;
+
+            if btn_right_db = '0' and right_pressed_prev = '1' then
                 value_chosen <= value_current;
+            end if;
+            right_pressed_prev <= btn_right_db;
+        end if;
+    end process;
+
+    -- Blink control
+    process(clk, reset)
+    begin
+        if reset = '0' then
+            blink_counter <= 0;
+            blink_on <= '1';
+        elsif rising_edge(clk) then
+            if value_current = 6 and value_chosen = 9 then
+                if blink_counter < BLINK_MAX then
+                    blink_counter <= blink_counter + 1;
+                else
+                    blink_counter <= 0;
+                    blink_on <= not blink_on;
+                end if;
+            else
+                blink_on <= '1';
+                blink_counter <= 0;
             end if;
         end if;
     end process;
 
-    HEX0 <= to_seven_seg(value_current); -- lewy wyświetlacz
-    HEX1 <= to_seven_seg(value_chosen);  -- prawy wyświetlacz
+    -- Display logic with blinking
+    HEX0 <= to_seven_seg(value_current) when blink_on = '1' else "1111111";
+    HEX1 <= to_seven_seg(value_chosen) when blink_on = '1' else "1111111";
 
 end Behavioral;
