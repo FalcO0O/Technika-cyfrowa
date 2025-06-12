@@ -1,0 +1,121 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity fpga is
+    Port (
+        clk       : in  STD_LOGIC;
+        reset     : in  STD_LOGIC;
+        btn_left  : in  STD_LOGIC;
+        btn_right : in  STD_LOGIC;
+        HEX0      : out STD_LOGIC_VECTOR (6 downto 0);
+        HEX1      : out STD_LOGIC_VECTOR (6 downto 0)
+    );
+end fpga;
+
+architecture Behavioral of fpga is
+
+    signal value_current     : INTEGER range 0 to 9 := 0;
+    signal value_chosen      : INTEGER range 0 to 9 := 0;
+
+    -- Debounce logic
+    constant DEBOUNCE_MAX    : INTEGER := 500000; -- ok. 10ms dla 50 MHz
+    signal counter_left      : INTEGER := 0;
+    signal counter_right     : INTEGER := 0;
+
+    signal btn_left_db       : STD_LOGIC := '0';
+    signal btn_right_db      : STD_LOGIC := '0';
+
+    signal btn_left_prev     : STD_LOGIC := '0';
+    signal btn_right_prev    : STD_LOGIC := '0';
+
+    signal left_pressed_prev  : STD_LOGIC := '0';
+    signal right_pressed_prev : STD_LOGIC := '0';
+
+    function to_seven_seg(val : INTEGER) return STD_LOGIC_VECTOR is
+        variable seg : STD_LOGIC_VECTOR(6 downto 0);
+    begin
+        case val is
+            when 0 => seg := "1000000";
+            when 1 => seg := "1111001";
+            when 2 => seg := "0100100";
+            when 3 => seg := "0110000";
+            when 4 => seg := "0011001";
+            when 5 => seg := "0010010";
+            when 6 => seg := "0000010";
+            when 7 => seg := "1111000";
+            when 8 => seg := "0000000";
+            when 9 => seg := "0010000";
+            when others => seg := "1111111";
+        end case;
+        return seg;
+    end;
+
+begin
+
+    -- Debouncing process
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            counter_left <= 0;
+            counter_right <= 0;
+            btn_left_db <= '0';
+            btn_right_db <= '0';
+            btn_left_prev <= '0';
+            btn_right_prev <= '0';
+        elsif rising_edge(clk) then
+            -- Debounce left button
+            if btn_left = btn_left_prev then
+                if counter_left < DEBOUNCE_MAX then
+                    counter_left <= counter_left + 1;
+                else
+                    btn_left_db <= btn_left;
+                end if;
+            else
+                counter_left <= 0;
+            end if;
+            btn_left_prev <= btn_left;
+
+            -- Debounce right button
+            if btn_right = btn_right_prev then
+                if counter_right < DEBOUNCE_MAX then
+                    counter_right <= counter_right + 1;
+                else
+                    btn_right_db <= btn_right;
+                end if;
+            else
+                counter_right <= 0;
+            end if;
+            btn_right_prev <= btn_right;
+        end if;
+    end process;
+
+    process(clk, reset)
+    begin
+        if reset = '1' then
+            value_current <= 0;
+            value_chosen <= 0;
+            left_pressed_prev <= '0';
+            right_pressed_prev <= '0';
+        elsif rising_edge(clk) then
+            if btn_left_db = '1' and left_pressed_prev = '0' then
+                if value_current = 9 then
+                    value_current <= 0;
+                else
+                    value_current <= value_current + 1;
+                end if;
+            end if;
+            left_pressed_prev <= btn_left_db;
+
+            if btn_right_db = '1' and right_pressed_prev = '0' then
+                value_chosen <= value_current;
+            end if;
+            right_pressed_prev <= btn_right_db;
+        end if;
+    end process;
+
+    HEX0 <= to_seven_seg(value_current); -- lewy wyÅ›wietlacz (aktualna wartoÅ›Ä‡)
+    HEX1 <= to_seven_seg(value_chosen);  -- prawy wyÅ›wietlacz (zatwierdzona wartoÅ›Ä‡)
+
+end Behavioral;
